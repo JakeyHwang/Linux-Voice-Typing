@@ -1,0 +1,62 @@
+# Cursor IDE
+.cursor/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments (install.sh creates .venv here)
+.venv/
+venv/
+ENV/
+env/
+
+# Environment and secrets
+.env
+.env.local
+*.local
+
+# Downloaded/bundled STT models (large, user or script fetches)
+models/
+*.onnx
+*.bin
+*.pt
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and local state
+*.log
+*.sqlite
+*.db
+
+# Install / packaging artifacts
+*.AppImage
+*.deb
+*.rpm
