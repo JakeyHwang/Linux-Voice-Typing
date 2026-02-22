@@ -20,8 +20,6 @@ To run the app smoothly:
 | **Audio** | Microphone; PortAudio/ALSA and PulseAudio or PipeWire (usual on desktop Linux). |
 | **Optional** | **Bar width** in Settings (0 = auto) sets the bar’s initial width when the app starts or when you click Apply. Drag the bar to move it. |
 
-Details and environment detection are in [docs/DISPLAY_ENVIRONMENT.md](docs/DISPLAY_ENVIRONMENT.md).
-
 ---
 
 ## Quick start
@@ -32,6 +30,8 @@ Details and environment detection are in [docs/DISPLAY_ENVIRONMENT.md](docs/DISP
 ```
 
 Or `.venv/bin/python main.py` if you don't use Conda/Miniconda. If you use Conda and see `GLIBCXX_3.4.32 not found` when loading PortAudio, use **`./run.sh`** (it runs the app without Conda's library path so system libs are used).
+
+You can also start the app from the application menu (**Linux Voice Typing**). If the menu entry does nothing (some environments don’t run the menu item), run **`gtk-launch linux-voice-typing`** or add a keyboard shortcut to that command in your system settings. Logging out and back in (or running `update-desktop-database ~/.local/share/applications`) can fix a stale menu. **Only one instance runs**—launching again (menu or shortcut) brings the existing window to the front instead of opening a second app. Log file for debugging: `~/.local/share/linux-voice-typing.log`.
 
 Then click the transcription bar to open **Settings**. Say **"mute"** or **"deactivate"** to sleep; say **"unmute"** or **"activate"** (or **"wake"** / **"resume"**) to wake.
 
@@ -59,6 +59,7 @@ Then click the transcription bar to open **Settings**. Say **"mute"** or **"deac
 | **Settings GUI** | Dedicated settings window: bar width, STT mode, input method (type vs clipboard), emit every N words, etc. |
 | **Echo cancellation** | Relies on system PipeWire/PulseAudio echo cancellation (documented); no in-app AEC. |
 | **Two STT tiers** | Default: lightweight/offline (e.g. Vosk). Optional: better accuracy (e.g. faster-whisper small, still self-hosted). |
+| **Single instance** | Only one process runs; launching again (menu or shortcut) raises the existing window instead of starting a duplicate. |
 
 ---
 
@@ -82,23 +83,11 @@ Then click the transcription bar to open **Settings**. Say **"mute"** or **"deac
 
 ### STT (Speech-to-Text)
 
-- **Tier 1 – Lightweight / offline:**  
-  - Vosk: streaming, CPU-friendly, small per-language models (~50 MB).  
-  - Good latency and battery/CPU; accuracy good but not best.
+You can choose the engine and model in **Settings**:
 
-- **Tier 2 – Better accuracy (optional, still self-hosted):**  
-  - faster-whisper with small (or medium) model, quantized (e.g. int8) for CPU.  
-  - Selectable in settings; no cloud, still local.
+- **Vosk** (lightweight, low latency): **Small** (40 MB), default.
 
-### Better STT accuracy (optional)
-
-The default **Vosk small** model is lightweight and good for CPU; accuracy is decent but not best. For **lighter and more accurate** options without changing code:
-
-- **Larger Vosk model (same API):**  
-  Download a bigger English model, e.g. [vosk-model-en-us-0.22](https://alphacephei.com/vosk/models) (~1.8 GB), extract into `~/.config/linux-voice-typing/models/vosk-model-en-us-0.22`, then set `vosk_model_name` in settings (or in `~/.config/linux-voice-typing/settings.json`) to `vosk-model-en-us-0.22`. Better accuracy, more RAM/CPU.
-
-- **Whisper.cpp (future):**  
-  For best CPU accuracy (e.g. base.en ~92%), a future option is to add a Whisper.cpp backend (C++ binary, no Python STT process). Today you can improve accuracy by using a larger Vosk model as above.
+- **Whisper** (better accuracy, more CPU): **tiny.en** or **base.en** in Settings. Models download on first use. Restart the app after changing STT engine or model.
 
 ### Text insertion
 
@@ -117,8 +106,8 @@ The default **Vosk small** model is lightweight and good for CPU; accuracy is de
   - Click the bar content to open Settings.
 
 - **Settings window (GUI):**  
+  - **STT engine:** Vosk or Whisper. **STT model:** Vosk Small or Whisper tiny.en/base.en. Restart the app after changing.  
   - **Listening:** Master on/off (enable/disable listening).  
-  - **Sleep mode:** Toggle or hotkey to enter/exit sleep.  
   - **Bar:** Width (0 = auto). Drag to move.  
   - **Input:** Type-into-focus vs clipboard.  
   - **Emit every N words:** Chunk size (default 10) so text is typed sooner.  

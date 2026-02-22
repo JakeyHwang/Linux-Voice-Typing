@@ -1,10 +1,11 @@
 # Audio capture
 sounddevice>=0.4.6
 
-# STT (Vosk - lightweight, streaming, CPU)
+# STT: Vosk (lightweight, streaming) and/or Whisper (better accuracy, optional)
 vosk>=0.3.45
+faster-whisper>=1.0.0
 
-# GUI (narrow bar + settings). PySide6 required for X11 "reserve space" (strut via Qt's display).
+# GUI (bar + settings)
 PySide6>=6.6.0
 
 # Optional: clipboard for "paste instead of type"

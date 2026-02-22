@@ -23,14 +23,17 @@ def _default_model_dir() -> str:
     return str(CONFIG_DIR / "models")
 
 
+# Vosk model (single option: small)
+VOSK_MODEL_SMALL = "vosk-model-small-en-us-0.15"
+
 DEFAULTS: dict[str, Any] = {
     "bar_width": 0,  # 0 = auto (use screen width); else width in px
     "listening": True,
     "input_method": "type",  # "type" | "clipboard"
-    "stt_mode": "vosk",  # "vosk" (lightweight) | "faster_whisper" (future)
-    "language": "en",
+    "stt_engine": "vosk",  # "vosk" | "whisper"
+    "vosk_model_name": VOSK_MODEL_SMALL,  # 40 MB, lightweight
+    "whisper_model_size": "base.en",  # tiny.en | base.en (Whisper)
     "model_path": "",  # empty = auto (use MODEL_DIR)
-    "vosk_model_name": "vosk-model-small-en-us-0.15",  # subdir or name for download
     "sleep_phrase": "mute",  # legacy single phrase
     "sleep_phrases": ["mute", "on mute", "go mute", "put on mute", "stop listening", "deactivate", "deactive", "deactivate speech"],
     "wake_phrases": ["unmute", "un mute", "on unmute", "wake", "wake up", "start listening", "resume", "activate", "activate speech"],

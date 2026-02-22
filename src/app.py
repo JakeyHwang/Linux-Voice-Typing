@@ -15,7 +15,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from src.audio import capture_loop, list_input_devices
 from src.config import load, save, get_model_dir
 from src.injection import copy_to_clipboard, get_injection_method, type_text
-from src.stt.vosk_engine import load_model, recognize_stream
+from src.stt.vosk_engine import load_model as load_vosk, recognize_stream as recognize_vosk
+from src.stt.faster_whisper_engine import load_model as load_whisper, recognize_stream as recognize_whisper
+from src import single_instance
 from src.ui.bar import TranscriptionBar
 from src.ui.settings import SettingsWindow
 from src.voice_commands import is_sleep_command, is_wake_command, strip_voice_command_from_text
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class VoiceTypingApp(QObject):
-    """Orchestrates mic capture, Vosk STT, voice commands, injection, and UI."""
+    """Orchestrates mic capture, STT (Vosk or Whisper), voice commands, injection, and UI."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -34,6 +36,7 @@ class VoiceTypingApp(QObject):
         self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
         self._model = None
+        self._stt_engine: Optional[str] = None  # "vosk" | "whisper"
         self._bar: Optional[TranscriptionBar] = None
         self._injection_method: Optional[str] = None
 
@@ -43,16 +46,32 @@ class VoiceTypingApp(QObject):
         self._typed_so_far = ""
 
     def _ensure_model(self) -> bool:
-        """Load Vosk model; return True if ready."""
+        """Load STT model (Vosk or Whisper) from settings; return True if ready."""
         if self._model is not None:
             return True
-        model_dir = self._settings.get("model_path") or str(get_model_dir() / self._settings.get("vosk_model_name", "vosk-model-small-en-us-0.15"))
+        engine = self._settings.get("stt_engine", "vosk")
+        self._stt_engine = engine
+        if engine == "whisper":
+            try:
+                size = self._settings.get("whisper_model_size", "base.en")
+                logger.info("Loading STT: Whisper %s (this may take a moment on first run)", size)
+                self._model = load_whisper(size, device="cpu", compute_type="int8")
+                logger.info("STT ready: Whisper %s", size)
+                return True
+            except Exception as e:
+                logger.exception("Failed to load Whisper model: %s", e)
+                return False
+        # Vosk
+        model_name = self._settings.get("vosk_model_name", "vosk-model-small-en-us-0.15")
+        model_dir = self._settings.get("model_path") or str(get_model_dir() / model_name)
         path = Path(model_dir)
         if not path.is_dir():
             logger.error("Vosk model not found at %s. Run install script or download a model.", path)
             return False
         try:
-            self._model = load_model(path)
+            logger.info("Loading STT: Vosk %s", model_name)
+            self._model = load_vosk(path)
+            logger.info("STT ready: Vosk %s", model_name)
             return True
         except Exception as e:
             logger.exception("Failed to load Vosk model: %s", e)
@@ -74,8 +93,9 @@ class VoiceTypingApp(QObject):
 
         if not self._ensure_model():
             return
+        recognize = recognize_whisper if self._stt_engine == "whisper" else recognize_vosk
         try:
-            for text, is_final in recognize_stream(self._model, chunk_iter()):
+            for text, is_final in recognize(self._model, chunk_iter()):
                 if self._stop_event.is_set():
                     break
                 try:
@@ -185,8 +205,31 @@ class VoiceTypingApp(QObject):
 
     def _open_settings(self) -> None:
         def on_apply(new_settings: dict[str, Any]) -> None:
+            # If user changed STT engine or model, clear cached model so next run uses it (restart required)
+            prev_engine = self._settings.get("stt_engine")
+            prev_vosk = self._settings.get("vosk_model_name")
+            prev_whisper = self._settings.get("whisper_model_size")
             self._settings = new_settings
             save(new_settings)
+            stt_changed = (
+                new_settings.get("stt_engine") != prev_engine
+                or (prev_engine == "vosk" and new_settings.get("vosk_model_name") != prev_vosk)
+                or (prev_engine == "whisper" and new_settings.get("whisper_model_size") != prev_whisper)
+            )
+            if stt_changed:
+                self._model = None
+                engine = new_settings.get("stt_engine", "vosk")
+                model_name = (
+                    new_settings.get("whisper_model_size", "base.en")
+                    if engine == "whisper"
+                    else new_settings.get("vosk_model_name", "vosk-model-small-en-us-0.15")
+                )
+                logger.info("STT changed to %s / %s. Restart the app for it to take effect.", engine, model_name)
+                QMessageBox.information(
+                    None,
+                    "Linux Voice Typing",
+                    f"STT is now set to {engine} / {model_name}.\n\nRestart the app for the new model to take effect.",
+                )
             if self._bar:
                 self._bar.set_state("sleep" if not self._awake else "listening")
                 self._bar.move_to_edge(bar_width_override=new_settings.get("bar_width", 0))
@@ -202,11 +245,12 @@ class VoiceTypingApp(QObject):
     def run(self) -> int:
         """Build UI, start threads, run event loop. Returns exit code."""
         if not self._ensure_model():
-            QMessageBox.critical(
-                None,
-                "Linux Voice Typing",
-                "Vosk model not found. Run the install script to download a model.",
-            )
+            engine = self._settings.get("stt_engine", "vosk")
+            if engine == "whisper":
+                msg = "Whisper model could not be loaded. Install: pip install faster-whisper"
+            else:
+                msg = "Vosk model not found. Run the install script to download a model."
+            QMessageBox.critical(None, "Linux Voice Typing", msg)
             return 1
 
         self._injection_method = get_injection_method()
@@ -220,6 +264,15 @@ class VoiceTypingApp(QObject):
         )
         self._bar.set_state("listening" if self._awake else "sleep")
         self._bar.move_to_edge(bar_width_override=self._settings.get("bar_width", 0))
+
+        # Single-instance: when another launch asks to raise, show and focus the bar (schedule on main thread)
+        def do_raise() -> None:
+            if self._bar:
+                self._bar.show()
+                self._bar.raise_()
+                self._bar.activateWindow()
+
+        single_instance.set_raise_callback(lambda: QTimer.singleShot(0, do_raise))
 
         # Timer to drain STT results on main thread
         timer = QTimer(self)

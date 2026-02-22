@@ -43,8 +43,13 @@ class TranscriptionBar(QFrame):
     def setup_ui(self) -> None:
         self.setMinimumHeight(self._bar_height)
         self.setMaximumHeight(self._bar_height)
-        # Frameless: no white title bar or min/max/close; drag by content
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        # Frameless, stay on top; Tool type so the app does not show in the taskbar/dock
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
+        )
         self.setMinimumWidth(280)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
         self.setStyleSheet("""

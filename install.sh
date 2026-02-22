@@ -90,21 +90,43 @@ else
     echo "Vosk model already present at $MODEL_DIR/$MODEL_NAME"
 fi
 
-# Desktop entry (optional)
+# Ensure run.sh and launcher are executable
+chmod +x "$REPO_DIR/run.sh"
+chmod +x "$REPO_DIR/launch-and-log.sh"
+
+# Wrapper in ~/.local/bin so the menu runs one executable from a standard location
+BIN_WRAPPER="$HOME/.local/bin/linux-voice-typing"
+mkdir -p "$(dirname "$BIN_WRAPPER")"
+cat > "$BIN_WRAPPER" << WRAPEOF
+#!/bin/bash
+exec "$REPO_DIR/launch-and-log.sh"
+WRAPEOF
+chmod +x "$BIN_WRAPPER"
+
+# Desktop entry: Exec = wrapper in ~/.local/bin (single path, no args)
 DESKTOP="$HOME/.local/share/applications/linux-voice-typing.desktop"
 mkdir -p "$(dirname "$DESKTOP")"
+LOG_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/linux-voice-typing.log"
+mkdir -p "$(dirname "$LOG_FILE")"
+echo "Install at $(date -Iseconds 2>/dev/null || date)" >> "$LOG_FILE"
 cat > "$DESKTOP" << EOF
 [Desktop Entry]
 Type=Application
 Name=Linux Voice Typing
 Comment=Self-hosted voice typing — say to type at cursor
-Exec=$REPO_DIR/run.sh
+Exec=$BIN_WRAPPER
 Path=$REPO_DIR
 Icon=audio-input-microphone
 Terminal=false
 Categories=Utility;Accessibility;
+StartupNotify=false
 EOF
+chmod +x "$DESKTOP"
+# Refresh menu if possible (ignored if command missing)
+command -v update-desktop-database &>/dev/null && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
 echo "Desktop entry written to $DESKTOP"
+echo "Wrapper installed to $BIN_WRAPPER"
+echo "If the menu entry does not start the app, check: $LOG_FILE"
 
 echo ""
 echo "=== Install complete ==="
